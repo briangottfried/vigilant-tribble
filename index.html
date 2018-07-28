@@ -13,7 +13,7 @@
                     <v-container grid-list-md text-xs-center>
                             <v-layout row wrap fill-height>
                               <v-flex xs12>
-                                  <v-header>UPDRS (T-UPDRS)</v-header>
+                                  <v-subheader>UPDRS (T-UPDRS)</v-subheader>
                                 </v-flex>
                               <v-flex xs12>
                                    <parcoords v-if="dataLoaded" :data='data' :bl-range='blRange' :y4-range='y4Range'></parcoords>
@@ -129,10 +129,27 @@
                     .attr('class', 'axis')
                     .attr('transform', "translate(" + this.padding + ", 0)")
                     .call(lax);
+
+                svg.append("text")
+                     .attr("transform", "rotate(-90)")
+                     .attr("y", -1)
+                     .attr("x",0 - (this.h / 2))
+                     .attr("dy", "1em")
+                     .style("text-anchor", "middle")
+                     .text("Baseline");
+
                 svg.append('g')
                     .attr('class', 'axis')
                     .attr('transform', "translate(" + (this.w - this.padding) + ", 0)")
                     .call(rax);
+
+                svg.append("text")
+                     .attr("transform", "rotate(-90)")
+                     .attr("y", this.w - 20)
+                     .attr("x", 0 - (this.h / 2))
+                     .attr("dy", "1em")
+                     .style("text-anchor", "middle")
+                     .text("Y4");
 
                 const lines = svg.selectAll('.line')
                     .data(this.data, this.key);
