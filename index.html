@@ -1,0 +1,192 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link href='https://fonts.googleapis.com/css?family=Roboto:300,400,500,700|Material+Icons' rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/vuetify/dist/vuetify.min.css" rel="stylesheet">
+  <title>Demo</title>
+</head>
+<body>
+    <div id="app">
+            <v-app>
+                    <v-container grid-list-md text-xs-center>
+                            <v-layout row wrap fill-height>
+                              <v-flex xs12>
+                                  <v-header>UPDRS (T-UPDRS)</v-header>
+                                </v-flex>
+                              <v-flex xs12>
+                                   <parcoords v-if="dataLoaded" :data='data' :bl-range='blRange' :y4-range='y4Range'></parcoords>
+                              </v-flex>
+                              <v-flex xs6>
+                                    <v-card-text>
+                                            <v-subheader>Baseline Filter</v-subheader>
+                                            <v-range-slider
+                                              v-if="dataLoaded"
+                                              thumb-label
+                                              :min='minBL'
+                                              :max='maxBL'
+                                              v-model='blRange'
+                                            ></v-range-slider>
+                                          </v-card-text>
+                              </v-flex>
+                              <v-flex xs6>
+                                    <v-card-text>
+                                            <v-subheader>Y4 Filter</v-subheader>
+                                            <v-range-slider
+                                              v-if='dataLoaded'
+                                              thumb-label
+                                              :min="minY4"
+                                              :max="maxY4"
+                                              v-model='y4Range'
+                                            ></v-range-slider>
+                                          </v-card-text>
+                              </v-flex>
+                            </v-layout>
+                          </v-container>
+                  </v-app>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.5.16/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vuetify/dist/vuetify.js"></script>
+    <script src='https://d3js.org/d3.v5.min.js'></script>
+
+    <script>
+        Vue.component('parcoords', {
+            props: [
+                'data',
+                'bl-range',
+                'y4-range',
+            ],
+            data() {
+                return {
+                    svg: undefined,
+                    h: 500,
+                    w: 500,
+                    padding: 40,
+                    leftScale: undefined,
+                    rigthScale: undefined,
+                }
+            },
+            methods: {
+                drawLines(lines) {
+                    lines.exit()
+                        .remove();
+
+                    lines.enter()
+                        .append('line')
+                            .attr('class', 'line')
+                            .attr('x1', this.padding)
+                            .attr('y1', d => this.scale(d.UPDRS_T_BL))
+                            .attr('x2', (this.w - this.padding))
+                            .attr('y2', d => this.scale(d.UPDRS_T_Y4))
+                            .attr('stroke', d => d.GENDER == 1 ? '#1976D2' : "pink")
+                            .attr('stroke-width', 1)
+                },
+                update() {
+                    const filteredData = this.data.filter(d => d.UPDRS_T_BL >= this.blRange[0] &&
+                             d.UPDRS_T_BL <= this.blRange[1] &&
+                             d.UPDRS_T_Y4 >= this.y4Range[0] &&
+                            d.UPDRS_T_Y4 <= this.y4Range[1]);
+
+                    const lines = this.svg.selectAll('.line')
+                        .data(filteredData, this.key);
+
+                    this.drawLines(lines);
+                },
+                key(d) {
+                    return `${d.GENDER}${d.UPDRS_T_BL}${d.UPDRS_T_Y4}`;
+                }
+            },
+            watch: {
+                blRange() {
+                    this.update();
+                },
+                y4Range() {
+                    this.update();
+                },
+            },
+            template: '<div id="vis"></div>',
+            async mounted() {
+                const minRng = Math.min(this.blRange[0], this.y4Range[0]);
+                const maxRng = Math.max(this.blRange[1], this.y4Range[1]);
+                const rng = [minRng, maxRng];
+
+                this.scale = d3.scaleLinear()
+                    .domain(rng)
+                    .range([this.h - this.padding, 0]);
+
+                const lax = d3.axisLeft(this.scale);
+                const rax = d3.axisRight(this.scale);
+
+                const svg = d3.select('#vis')
+                    .append('svg')
+                        .attr('width', this.h)
+                        .attr('height', this.w);
+                this.svg = svg;
+
+                svg.append('g')
+                    .attr('class', 'axis')
+                    .attr('transform', "translate(" + this.padding + ", 0)")
+                    .call(lax);
+                svg.append('g')
+                    .attr('class', 'axis')
+                    .attr('transform', "translate(" + (this.w - this.padding) + ", 0)")
+                    .call(rax);
+
+                const lines = svg.selectAll('.line')
+                    .data(this.data, this.key);
+
+                this.drawLines(lines);
+            }
+        });
+
+        const app = new Vue({
+            el: '#app',
+            data: {
+                data: {},
+                dataLoaded: false,
+                blRange: [],
+                y4Range: [],
+            },
+            computed: {
+                minBL() {
+                    return d3.min(this.data.map(d => d.UPDRS_T_BL));
+                },
+                maxBL() {
+                    return d3.max(this.data.map(d => d.UPDRS_T_BL));
+                },
+                minY4() {
+                    return d3.min(this.data.map(d => d.UPDRS_T_Y4));
+                },
+                maxY4() {
+                    return d3.max(this.data.map(d => d.UPDRS_T_Y4));
+                }
+            },
+            async created() {
+                this.data = await this.getData('UMD.json');
+                this.blRange = [this.minBL, this.maxBL];
+                this.y4Range = [this.minY4, this.maxY4];
+                this.dataLoaded = true;
+            },
+            methods: {
+                async getData(file) {
+                   let fileData;
+
+                   await d3.json(file)
+                       .then(data => {
+                           fileData = data.data.map(d => {
+                               return {
+                                   GENDER: Math.round(d.GENDER),
+                                   UPDRS_T_BL: Math.round(d.UPDRS_T_BL),
+                                   UPDRS_T_Y4: Math.round(d.UPDRS_T_Y4),
+                               }
+                           });
+                       });
+                   return fileData;
+               },
+            }
+        })
+    </script>
+</body>
+</html>
